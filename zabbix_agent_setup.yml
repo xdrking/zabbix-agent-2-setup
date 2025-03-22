@@ -1,0 +1,42 @@
+---
+- name: Zabbix agent 2'yi yükle ve yapılandır
+  hosts: agents  # Sadece agents grubundaki cihazlara uygulanacak
+  become: yes
+  tasks:
+    - name: Zabbix deposunu yükle ve paketleri güncelle
+      apt:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - wget
+        - gnupg
+        - software-properties-common
+
+    - name: Zabbix deposunu ekle
+      shell: |
+        wget https://repo.zabbix.com/zabbix/7.2/release/ubuntu/pool/main/z/zabbix-release/zabbix-release_latest_7.2+ubuntu24.04_all.deb -O /tmp/zabbix-release.deb
+        dpkg -i /tmp/zabbix-release.deb
+        apt update
+      args:
+        creates: /etc/apt/sources.list.d/zabbix.list
+
+    - name: Zabbix Agent 2'yi yükle
+      apt:
+        name: zabbix-agent2
+        state: present
+
+    - name: Zabbix Agent 2'yi yapılandır
+      lineinfile:
+        path: /etc/zabbix/zabbix_agent2.conf
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+      loop:
+        - { regexp: '^Server=', line: "Server=<Zabbix_server_ip_adresini_gir>" }
+        - { regexp: '^ServerActive=', line: "ServerActive=<Zabbix_server_ip_adresini_gir>" }
+        - { regexp: '^Hostname=', line: "Hostname={{ inventory_hostname }}" }
+
+    - name: Zabbix Agent 2 servisini etkinleştir ve yeniden başlat
+      systemd:
+        name: zabbix-agent2
+        enabled: yes
+        state: restarted
